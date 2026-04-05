@@ -8,7 +8,9 @@ import os
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 app = FastAPI(title="Chatbot - Derecho Agrario MVP")
-
+@app.get("/")
+def home():
+    return {"mensaje": "Bienvenido a AgroLex 🌱 - Chatbot de Derecho Agrario"}
 DB_PATH = "faqs.db"
 
 def init_db():
