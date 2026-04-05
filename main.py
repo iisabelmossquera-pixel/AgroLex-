@@ -132,7 +132,7 @@ async def chat(data: UserQuery):
     # OpenAI
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Eres un experto en derecho agrario."},
                 {"role": "user", "content": msg}
