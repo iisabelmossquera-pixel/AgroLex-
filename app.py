@@ -9,6 +9,84 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 app = FastAPI(title="Chatbot - Derecho Agrario MVP")
 @app.get("/")
+from fastapi.responses import HTMLResponse
+
+@app.get("/chat-ui", response_class=HTMLResponse)
+def chat_ui():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>AgroLex Chat</title>
+        <style>
+            body {
+                font-family: Arial;
+                background: #f5f5f5;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+            }
+            .chat-box {
+                width: 350px;
+                background: white;
+                border-radius: 10px;
+                padding: 15px;
+                box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            }
+            .messages {
+                height: 300px;
+                overflow-y: auto;
+                margin-bottom: 10px;
+            }
+            .input-box {
+                display: flex;
+            }
+            input {
+                flex: 1;
+                padding: 10px;
+            }
+            button {
+                padding: 10px;
+                background: #4CAF50;
+                color: white;
+                border: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="chat-box">
+            <h3>AgroLex 🌱</h3>
+            <div class="messages" id="messages"></div>
+            <div class="input-box">
+                <input id="input" placeholder="Escribe tu pregunta..." />
+                <button onclick="send()">Enviar</button>
+            </div>
+        </div>
+
+        <script>
+            async function send() {
+                let input = document.getElementById("input");
+                let msg = input.value;
+
+                document.getElementById("messages").innerHTML += "<p><b>Tú:</b> " + msg + "</p>";
+
+                let res = await fetch("/chat", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({message: msg})
+                });
+
+                let data = await res.json();
+
+                document.getElementById("messages").innerHTML += "<p><b>AgroLex:</b> " + data.reply + "</p>";
+
+                input.value = "";
+            }
+        </script>
+    </body>
+    </html>
+    """
 def home():
     return {"mensaje": "Bienvenido a AgroLex 🌱 - Chatbot de Derecho Agrario"}
 DB_PATH = "faqs.db"
