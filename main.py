@@ -1,145 +1,153 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-import sqlite3
-import os
 from openai import OpenAI
+import os
 
-# ------------------------
-# OPENAI (NUEVA VERSION)
-# ------------------------
+app = FastAPI()
+
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-app = FastAPI(title="AgroLex - Derecho Agrario")
+class Message(BaseModel):
+    message: str
 
-DB_PATH = "faqs.db"
 
-
-# ------------------------
-# HOME
-# ------------------------
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def home():
-    return {"mensaje": "AgroLex 🌱 funcionando correctamente"}
-
-
-# ------------------------
-# CHAT UI
-# ------------------------
-@app.get("/chat-ui", response_class=HTMLResponse)
-def chat_ui():
     return """
+    <!DOCTYPE html>
     <html>
-    <body style="font-family:Arial; display:flex; justify-content:center; align-items:center; height:100vh;">
-        <div>
-            <h2>AgroLex 🌱</h2>
-            <input id="msg" placeholder="Escribe..." />
+    <head>
+        <title>AgroLex 🌱</title>
+        <style>
+            body {
+                margin: 0;
+                font-family: Arial, sans-serif;
+                background: #0f172a;
+                color: white;
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+            }
+
+            .header {
+                padding: 15px;
+                text-align: center;
+                background: #020617;
+                font-weight: bold;
+                font-size: 18px;
+            }
+
+            .chat {
+                flex: 1;
+                overflow-y: auto;
+                padding: 15px;
+            }
+
+            .msg {
+                margin-bottom: 12px;
+                padding: 10px 14px;
+                border-radius: 12px;
+                max-width: 70%;
+            }
+
+            .user {
+                background: #2563eb;
+                align-self: flex-end;
+            }
+
+            .bot {
+                background: #1e293b;
+                align-self: flex-start;
+            }
+
+            .input-area {
+                display: flex;
+                padding: 10px;
+                background: #020617;
+            }
+
+            input {
+                flex: 1;
+                padding: 12px;
+                border-radius: 8px;
+                border: none;
+                outline: none;
+            }
+
+            button {
+                margin-left: 10px;
+                padding: 12px;
+                border: none;
+                border-radius: 8px;
+                background: #22c55e;
+                color: white;
+                cursor: pointer;
+            }
+        </style>
+    </head>
+    <body>
+
+        <div class="header">AgroLex 🌱</div>
+
+        <div id="chat" class="chat"></div>
+
+        <div class="input-area">
+            <input id="input" placeholder="Escribe tu pregunta..." />
             <button onclick="send()">Enviar</button>
-            <div id="chat"></div>
         </div>
 
         <script>
-        async function send() {
-            let msg = document.getElementById("msg").value;
+            async function send() {
+                let input = document.getElementById("input");
+                let msg = input.value;
 
-            let res = await fetch("/chat", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({message: msg})
-            });
+                if (!msg) return;
 
-            let data = await res.json();
-            document.getElementById("chat").innerHTML += "<p><b>Tú:</b> " + msg + "</p>";
-            document.getElementById("chat").innerHTML += "<p><b>AgroLex:</b> " + data.reply + "</p>";
-        }
+                addMessage(msg, "user");
+
+                let res = await fetch("/chat", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({message: msg})
+                });
+
+                let data = await res.json();
+
+                addMessage(data.reply, "bot");
+
+                input.value = "";
+            }
+
+            function addMessage(text, type) {
+                let chat = document.getElementById("chat");
+                let div = document.createElement("div");
+
+                div.className = "msg " + type;
+                div.innerText = text;
+
+                chat.appendChild(div);
+                chat.scrollTop = chat.scrollHeight;
+            }
         </script>
+
     </body>
     </html>
     """
 
 
-# ------------------------
-# DB
-# ------------------------
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS faq (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        question TEXT UNIQUE,
-        answer TEXT
-    )
-    """)
-
-    sample = [
-        ("derecho agrario", "Rama del derecho que regula la tierra."),
-        ("reforma agraria", "Redistribución de tierras para equidad."),
-        ("función social de la tierra", "La tierra debe ser productiva y útil a la sociedad.")
-    ]
-
-    for q, a in sample:
-        try:
-            c.execute("INSERT INTO faq (question, answer) VALUES (?, ?)", (q, a))
-        except:
-            pass
-
-    conn.commit()
-    conn.close()
-
-
-def get_faq(question: str):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT answer FROM faq WHERE question LIKE ?", (f"%{question}%",))
-    row = c.fetchone()
-    conn.close()
-    return row[0] if row else None
-
-
-# ------------------------
-# MODELOS
-# ------------------------
-class UserQuery(BaseModel):
-    message: str
-
-
-# ------------------------
-# STARTUP
-# ------------------------
-@app.on_event("startup")
-def startup():
-    init_db()
-
-
-# ------------------------
-# CHAT
-# ------------------------
 @app.post("/chat")
-async def chat(data: UserQuery):
-
-    msg = data.message.strip().lower()
-
-    if not msg:
-        raise HTTPException(status_code=400, detail="Mensaje vacío")
-
-    # FAQ primero
-    faq = get_faq(msg)
-    if faq:
-        return {"reply": faq, "source": "faq"}
-
-    # OpenAI
+def chat(msg: Message):
     try:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Eres un experto en derecho agrario."},
-                {"role": "user", "content": msg}
+                {"role": "system", "content": "Eres un experto en derecho agrario. Responde claro y breve."},
+                {"role": "user", "content": msg.message}
             ]
         )
 
-        return {"reply": response.choices[0].message.content, "source": "llm"}
+        return {"reply": response.choices[0].message.content}
 
     except Exception as e:
-        return {"reply": "Error en IA", "source": "error"}
+        return {"reply": str(e)}
