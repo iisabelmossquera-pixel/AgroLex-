@@ -15,125 +15,181 @@ class Message(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 def home():
     return """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>AgroLex 🌱</title>
-        <style>
-            body {
-                margin: 0;
-                font-family: Arial, sans-serif;
-                background: #0f172a;
-                color: white;
-                display: flex;
-                flex-direction: column;
-                height: 100vh;
-            }
+<!DOCTYPE html>
+<html>
+<head>
+<title>AgroLex 🌱</title>
 
-            .header {
-                padding: 15px;
-                text-align: center;
-                background: #020617;
-                font-weight: bold;
-                font-size: 18px;
-            }
+<style>
+:root {
+    --bg: #0f172a;
+    --text: white;
+    --bot: #1e293b;
+    --user: #3b82f6;
+}
 
-            .chat {
-                flex: 1;
-                overflow-y: auto;
-                padding: 15px;
-            }
+.light {
+    --bg: #f5f5f5;
+    --text: #111;
+    --bot: #e2e8f0;
+    --user: #2563eb;
+}
 
-            .msg {
-                margin-bottom: 12px;
-                padding: 10px 14px;
-                border-radius: 12px;
-                max-width: 70%;
-            }
+body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    transition: 0.3s;
+}
 
-            .user {
-                background: #2563eb;
-                align-self: flex-end;
-            }
+.header {
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
 
-            .bot {
-                background: #1e293b;
-                align-self: flex-start;
-            }
+.header span:first-child {
+    font-size: 32px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
 
-            .input-area {
-                display: flex;
-                padding: 10px;
-                background: #020617;
-            }
+.chat {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
 
-            input {
-                flex: 1;
-                padding: 12px;
-                border-radius: 8px;
-                border: none;
-                outline: none;
-            }
+.msg {
+    padding: 12px 16px;
+    border-radius: 16px;
+    margin-bottom: 10px;
+    max-width: 70%;
+    animation: fade 0.2s;
+}
 
-            button {
-                margin-left: 10px;
-                padding: 12px;
-                border: none;
-                border-radius: 8px;
-                background: #22c55e;
-                color: white;
-                cursor: pointer;
-            }
-        </style>
-    </head>
-    <body>
+.user {
+    background: var(--user);
+    align-self: flex-end;
+}
 
-        <div class="header">AgroLex 🌱</div>
+.bot {
+    background: var(--bot);
+    align-self: flex-start;
+}
 
-        <div id="chat" class="chat"></div>
+.input-area {
+    display: flex;
+    padding: 10px;
+}
 
-        <div class="input-area">
-            <input id="input" placeholder="Escribe tu pregunta..." />
-            <button onclick="send()">Enviar</button>
-        </div>
+input {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+}
 
-        <script>
-            async function send() {
-                let input = document.getElementById("input");
-                let msg = input.value;
+button {
+    margin-left: 10px;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: #22c55e;
+    color: white;
+    cursor: pointer;
+}
 
-                if (!msg) return;
+button:hover {
+    background: #16a34a;
+}
 
-                addMessage(msg, "user");
+.toggle {
+    cursor: pointer;
+    font-size: 18px;
+}
 
-                let res = await fetch("/chat", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({message: msg})
-                });
+.typing {
+    font-style: italic;
+    opacity: 0.7;
+}
 
-                let data = await res.json();
+@keyframes fade {
+    from {opacity:0; transform: translateY(5px);}
+    to {opacity:1;}
+}
+</style>
+</head>
 
-                addMessage(data.reply, "bot");
+<body>
 
-                input.value = "";
-            }
+<div class="header">
+    <span>🌱 AgroLex</span>
+    <span class="toggle" onclick="toggleMode()">🌙</span>
+</div>
 
-            function addMessage(text, type) {
-                let chat = document.getElementById("chat");
-                let div = document.createElement("div");
+<div id="chat" class="chat"></div>
 
-                div.className = "msg " + type;
-                div.innerText = text;
+<div class="input-area">
+    <input id="input" placeholder="Haz tu pregunta legal..." />
+    <button onclick="send()">Enviar</button>
+</div>
 
-                chat.appendChild(div);
-                chat.scrollTop = chat.scrollHeight;
-            }
-        </script>
+<script>
 
-    </body>
-    </html>
-    """
+function toggleMode() {
+    document.body.classList.toggle("light");
+}
+
+async function send() {
+    let input = document.getElementById("input");
+    let msg = input.value;
+
+    if (!msg) return;
+
+    addMessage(msg, "user");
+
+    let typingDiv = addMessage("Escribiendo...", "bot typing");
+
+    let res = await fetch("/chat", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({message: msg})
+    });
+
+    let data = await res.json();
+
+    typingDiv.remove();
+    addMessage(data.reply, "bot");
+
+    input.value = "";
+}
+
+function addMessage(text, type) {
+    let chat = document.getElementById("chat");
+    let div = document.createElement("div");
+
+    div.className = "msg " + type;
+    div.innerText = text;
+
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+
+    return div;
+}
+
+</script>
+
+</body>
+</html>
+"""
 
 
 @app.post("/chat")
@@ -142,7 +198,7 @@ def chat(msg: Message):
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Eres un experto en derecho agrario. Responde claro y breve."},
+                {"role": "system", "content": "Eres un abogado experto en derecho agrario en Panamá. Explica claro, con ejemplos simples."},
                 {"role": "user", "content": msg.message}
             ]
         )
